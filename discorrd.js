@@ -1,45 +1,49 @@
-const http = require('http');
+const express = require('express');
+const bodyParser = require('body-parser');
 const fetch = require('node-fetch');
 
-// Server die 'I'm alive' terugstuurt
-http.createServer(function (req, res) {
-  res.write("I'm alive");
-  res.end();
-}).listen(8080);
+const app = express();
+const port = process.env.PORT || 3000;
 
-// Functie om elke 5 seconden een bericht naar de Discord-webhook te sturen
-async function sendMessage() {
-  try {
-    // Discord-webhook-URL
-    const webhookURL = 'https://discord.com/api/webhooks/1219008140159352963/I07kOVhmJivstq-uZl3ccjvyHrjrnypKiULh73NM7WCcJRF3An7gslX7tR1Tn2_I8-ZL';
-    
-    // Bericht dat moet worden verzonden
-    const message = {
-      content: 'hoi'
-    };
+app.use(bodyParser.json());
 
-    // Opties voor de fetch API
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(message),
-    };
+// Definieer een route voor de GitHub-webhook
+app.post('/webhook', (req, res) => {
+    // Controleer of het verzoek afkomstig is van GitHub
+    const githubEvent = req.headers['x-github-event'];
 
-    // Verstuur het bericht naar de webhook
-    const response = await fetch(webhookURL, options);
+    if (githubEvent === 'push') {
+        const message = 'Hoi, er is een nieuwe push naar de GitHub-repository gemaakt!';
+        const discordWebhookURL = 'https://discord.com/api/webhooks/1219008140159352963/I07kOVhmJivstq-uZl3ccjvyHrjrnypKiULh73NM7WCcJRF3An7gslX7tR1Tn2_I8-ZL';
 
-    // Controleer of het bericht succesvol is verzonden
-    if (response.ok) {
-      console.log('Bericht succesvol verzonden naar Discord');
+        // Bouw het payload-object voor het Discord-bericht
+        const payload = {
+            content: message
+        };
+
+        // Stuur een POST-verzoek naar Discord-webhook-URL
+        fetch(discordWebhookURL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(() => {
+            console.log('Bericht succesvol naar Discord verzonden.');
+            res.status(200).send('Bericht succesvol naar Discord verzonden.');
+        })
+        .catch(error => {
+            console.error('Er is een fout opgetreden bij het verzenden van het bericht naar Discord:', error);
+            res.status(500).send('Er is een fout opgetreden bij het verzenden van het bericht naar Discord.');
+        });
     } else {
-      console.error('Er is een fout opgetreden bij het verzenden van het bericht naar Discord');
+        console.log('Onverwacht GitHub-evenement ontvangen:', githubEvent);
+        res.status(400).send('Onverwacht GitHub-evenement ontvangen.');
     }
-  } catch (error) {
-    console.error('Er is een fout opgetreden:', error);
-  }
-}
+});
 
-// Stuur elke 5 seconden een bericht naar de Discord-webhook
-setInterval(sendMessage, 5000);
+// Start de server
+app.listen(port, () => {
+    console.log(`Server luistert op poort ${port}`);
+});
